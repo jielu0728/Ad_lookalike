@@ -19,10 +19,16 @@ for line in f_feature:
         feature_range[i] = line.strip().split('_')[0]
     start = end
 
+f_feature_freq = open(base_dir+'train_feature_freq.txt')
+feature_freq = []
+for line in f_feature_freq:
+    if line.strip() != '':
+        feature_freq.append(line)
+
 f = open(base_dir+'interpret_coef.txt', 'w')
 feature_name = ''
 for i in range(len(coef)):
     if feature_range[i] != feature_name:
-        f.write('-------------------------------------\n')
+        f.write('%s\n' % ''.join(['-']*100))
     feature_name = feature_range[i]
-    f.write('%s_%d: %s\n' % (feature_range[i], i, coef[i]))
+    f.write('%s_%d: %s            %s' % (feature_range[i], i, coef[i], feature_freq[i]))
