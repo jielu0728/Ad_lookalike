@@ -9,6 +9,7 @@ for f_model in glob(base_dir+'*model*'):
     coef_list.append(joblib.load(f_model).coef_)
 coef = np.mean(coef_list, axis=0)[0]
 
+
 feature_range = {}
 f_feature = open(base_dir+'feature_list.txt')
 start = 0
