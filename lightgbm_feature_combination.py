@@ -21,7 +21,7 @@ w2v_model_dir = base_dir+'lgb_w2v/'
 combined_model_dir = base_dir+'lgb_combined/'
 w2v_size = 20
 i_th_fold = int(sys.argv[1])
-
+'''
 if os.path.exists(base_dir+'data.csv'):
     data = pd.read_csv(base_dir+'data.csv')
 else:
@@ -59,26 +59,23 @@ one_hot_feature = ['LBS', 'age', 'carrier', 'consumptionAbility', 'education', '
                    'advertiserId', 'campaignId', 'creativeId', 'adCategoryId',
                    'productId', 'productType', 'creativeSize', 'marriageStatus', 'ct', 'os']
 
-data.drop(columns=['interest1', 'interest2', 'interest3', 'interest4',
-              'interest5', 'appIdAction', 'appIdInstall', 'kw1', 'kw2', 'kw3', 'topic1', 'topic2', 'topic3'], inplace=True)
-
 cv_feature = ['interest1', 'interest2', 'interest3', 'interest4',
               'interest5', 'appIdAction', 'appIdInstall', 'kw1', 'kw2', 'kw3', 'topic1', 'topic2', 'topic3']
 
 one_hot_combined_feature = []
-#features_to_combine = ['LBS', 'age', 'consumptionAbility', 'education', 'gender', 'productType', 'creativeSize',
-#                       'marriageStatus', 'os', 'adCategoryId']
+features_to_combine_left = ['LBS', 'age', 'carrier', 'consumptionAbility', 'education', 'gender', 'house', 'marriageStatus', 'ct', 'os']
+features_to_combine_right = ['advertiserId', 'campaignId', 'creativeId', 'adCategoryId', 'productId', 'productType', 'creativeSize']
 
-for feature_name, col in combine_features(one_hot_feature, data, 50).items():
+
+for feature_name, col in combine_features(features_to_combine_left, features_to_combine_right, data, 200).items():
     one_hot_combined_feature.append(feature_name)
     data[feature_name] = col
 
 print(data)
 one_hot_feature = [[f, 'one-hot'] for f in one_hot_feature]
 cv_feature = [[f, 'cv'] for f in cv_feature]
-#features = one_hot_feature + cv_feature
 one_hot_combined_feature = [[f, 'one-hot'] for f in one_hot_combined_feature]
-features = one_hot_combined_feature
+features = one_hot_feature + cv_feature + one_hot_combined_feature
 shuffle(features)
 
 train = data[data.label != -1]
@@ -122,6 +119,8 @@ res = pd.read_csv(base_dir+'test1.csv')
 feature_list = []
 f_feature = list(filter(lambda x: 'w2v' not in x, glob(feature_dir+'*.ftr')))
 f_feature = sorted(f_feature, key=lambda x: int(x.split('/')[-1].split('_')[-2]), reverse=True)
+
+'''
 bar = tqdm(total=len(f_feature)+1)
 train_num_rows, test_num_rows = 0, 0
 num_cols = 0
@@ -154,8 +153,24 @@ for f_train_part in f_feature:
     train_x += train_x_sparse_part.tocsr()
     test_x += test_x_sparse_part.tocsr()
     bar2.update()
+'''
+
+
+train_x = []
+test_x = []
+bar = tqdm(total=len(f_feature)+1)
+for f_train_part in f_feature:
+    feature_name = f_train_part.split('/')[-1].split('.')[0]
+    train_x_part, test_x_part = pickle.load(open(f_train_part, 'rb'))
+    train_x.append(train_x_part)
+    test_x.append(test_x_part)
+    feature_list.append(feature_name)
+    bar.update()
 
 print(feature_list)
+
+train_x = csr_matrix(hstack(train_x))
+test_x = csr_matrix(hstack(test_x))
 
 split_idx_list = []
 for i in range(5):
@@ -173,7 +188,7 @@ for i in range(5):
         train_idx += split_idx_list[i]
 train_x, train_y = train_x[train_idx], train_y[train_idx]
 
-f_feature_list = open(base_dir + 'feature_list_combined_all.txt', 'w')
+f_feature_list = open(combined_model_dir + 'feature_list_combined_all.txt', 'w')
 for f in feature_list:
     f_feature_list.write('%s\n' % f)
 f_feature_list.close()
@@ -181,10 +196,10 @@ f_feature_list.close()
 def LGB_predict(train_x, train_y, valid_x, valid_y, test_x, res):
     print("LGB test")
     clf = lgb.LGBMClassifier(
-        boosting_type='gbdt', num_leaves=31, reg_alpha=0.0, reg_lambda=1,
-        max_depth=-1, n_estimators=10000, objective='binary',
+        boosting_type='gbdt', num_leaves=60, reg_alpha=0.0, reg_lambda=1,
+        max_depth=-1, n_estimators=7000, objective='binary',
         subsample=0.7, colsample_bytree=0.7, subsample_freq=1,
-        learning_rate=0.05, min_child_weight=50, random_state=2018, n_jobs=-1
+        learning_rate=0.03, min_child_weight=50, random_state=2018, n_jobs=-1
     )
     clf.fit(train_x, train_y, eval_set=[(valid_x, valid_y)], eval_metric='auc', early_stopping_rounds=500)
     res['score'] = clf.predict_proba(test_x)[:, 1]
@@ -201,5 +216,3 @@ def LGB_predict(train_x, train_y, valid_x, valid_y, test_x, res):
     return clf
 
 model = LGB_predict(train_x, train_y, valid_x, valid_y, test_x, res)
-pickle.dump((train_x, train_y), open(combined_model_dir+'training.bin', 'wb'), protocol=4)
-'''

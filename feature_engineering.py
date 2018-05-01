@@ -1,36 +1,29 @@
 from tqdm import tqdm
 from collections import Counter
 import numpy as np
-def combine_features(feature_names, data, take_limit):
-    treated_pairs = set()
+def combine_features(feature_names_left, feature_names_right, data, take_limit):
     new_cols = {}
     dict_limited = {}
     data_limited = {}
     feature_size = 0
     if take_limit is not None:
-        bar0 = tqdm(total=len(feature_names)+1, position=0)
-        for f in feature_names:
+        bar0 = tqdm(total=len(feature_names_left+feature_names_right)+1, position=0)
+        for f in feature_names_left+feature_names_right:
             dict_limited[f] = set(data[f].value_counts().nlargest(take_limit).index)
             data_limited[f] = data[f].apply(lambda v: str(v) if v in dict_limited[f] else 'n')
             bar0.update()
     else:
-        bar0 = tqdm(total=len(feature_names) + 1, position=0)
-        for f in feature_names:
+        bar0 = tqdm(total=len(feature_names_left+feature_names_right) + 1, position=0)
+        for f in feature_names_left+feature_names_right:
             data_limited[f] = data[f].apply(str)
             bar0.update()
-    bar = tqdm(total=len(feature_names)*(len(feature_names)-1)/2+1, position=1)
-    for i in range(len(feature_names)):
-        for j in range(len(feature_names)):
-            if i != j and (i, j) not in treated_pairs:
-                combined_name = '%s_%s' % (feature_names[i], feature_names[j])
-                treated_pairs.update([(i, j), (j, i)])
-                if take_limit is not None:
-                    new_cols[combined_name] = (data_limited[feature_names[i]] + '_' + data_limited[feature_names[j]]).astype('category').cat.codes
-                    feature_size += len(dict_limited[feature_names[i]]) * len(dict_limited[feature_names[j]])
-                else:
-                    new_cols[combined_name] = (data_limited[feature_names[i]] + '_' + data_limited[feature_names[j]]).astype('category').cat.codes
-                    feature_size += len(set(data_limited[feature_names[i]])) * len(set(data_limited[feature_names[j]]))
-                bar.update()
+    bar = tqdm(total=len(feature_names_left)*len(feature_names_right), position=1)
+    for i in range(len(feature_names_left)):
+        for j in range(len(feature_names_right)):
+            combined_name = '%s_%s' % (feature_names_left[i], feature_names_right[j])
+            new_cols[combined_name] = (data_limited[feature_names_left[i]] + '_' + data_limited[feature_names_right[j]]).astype('category').cat.codes
+            feature_size += len(data_limited[feature_names_left[i]].value_counts()) * len(data_limited[feature_names_right[j]].value_counts())
+            bar.update()
     print('Estimated combined feature size: %d' % feature_size)
     return new_cols
 

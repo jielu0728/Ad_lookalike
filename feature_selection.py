@@ -29,10 +29,10 @@ for i in range(5):
 
 train_idx = []
 for i in range(1, 5):
-    train_idx += sample(split_idx_list[i], int(0.05*len(split_idx_list[i])))
-    #train_idx += split_idx_list[i]
-valid_idx = sample(split_idx_list[0], int(0.05*len(split_idx_list[0])))
-#valid_idx = split_idx_list[0]
+    #train_idx += sample(split_idx_list[i], int(0.05*len(split_idx_list[i])))
+    train_idx += split_idx_list[i]
+#valid_idx = sample(split_idx_list[0], int(0.05*len(split_idx_list[0])))
+valid_idx = split_idx_list[0]
 assert len(set(train_idx) & set(valid_idx)) == 0
 
 if os.path.exists(base_dir+'data.csv'):
@@ -77,14 +77,17 @@ joblib.dump((train_idx, valid_idx), feature_selection_dir+'train_valid_idx.bin')
 
 one_hot_feature = ['LBS', 'age', 'carrier', 'consumptionAbility', 'education', 'gender', 'house',
                    'advertiserId', 'campaignId', 'creativeId', 'adCategoryId',
-                   'productId', 'productType', 'creativeSize', 'marriageStatus', 'ct', 'os']
+                   'productId', 'productType', 'creativeSize', 'marriageStatus', 'ct', 'os', 'aid']
 
 cv_feature = ['interest1', 'interest2', 'interest3', 'interest4',
               'interest5', 'appIdAction', 'appIdInstall', 'kw1', 'kw2', 'kw3', 'topic1', 'topic2', 'topic3']
 
+features_to_combine_left = ['LBS', 'age', 'carrier', 'consumptionAbility', 'education', 'gender', 'house', 'marriageStatus', 'ct', 'os']
+features_to_combine_right = ['advertiserId', 'campaignId', 'creativeId', 'adCategoryId', 'productId', 'productType', 'creativeSize']
+
 one_hot_combined_feature = []
 
-for feature_name, col in combine_features(one_hot_feature, train, None).items():
+for feature_name, col in combine_features(features_to_combine_left, features_to_combine_right, train, 200).items():
     one_hot_combined_feature.append(feature_name)
     train[feature_name] = col
 
@@ -148,7 +151,7 @@ train_idx, valid_idx = joblib.load(feature_selection_dir+'train_valid_idx.bin')
 y = pd.read_csv(base_dir + 'train_y.csv', header=None).ix[:, 0]
 train_y, valid_y = y[train_idx], y[valid_idx]
 
-low_importance_set = joblib.load(feature_selection_dir+'low_importance.set')
+#low_importance_set = joblib.load(feature_selection_dir+'low_importance.set')
 
 feature_list = []
 f_feature = glob(feature_selection_dir+'*.ftr')
@@ -164,20 +167,21 @@ feature_count = 0
 for f_train_part in f_feature:
     feature_name = f_train_part.split('/')[-1].split('.')[0]
     tmp = f_train_part.split('/')[-1].rsplit('_', 2)[0]
-    if tmp in low_importance_set:
-        print('Feature: %s is low importance' % feature_name)
+    #if tmp in low_importance_set:
+    #    print('Feature: %s is low importance' % feature_name)
+    #else:
+    train_x_part, valid_x_part = pickle.load(open(f_train_part, 'rb'))
+    if type(train_x_part) == list:
+        #train_x_list.append(train_x_part)
+        #valid_x_list.append(valid_x_part)
+        #feature_list_list.append(feature_name)
+        #feature_count += 1
+        pass
     else:
-        train_x_part, valid_x_part = pickle.load(open(f_train_part, 'rb'))
-        if type(train_x_part) == list:
-            train_x_list.append(train_x_part)
-            valid_x_list.append(valid_x_part)
-            feature_list_list.append(feature_name)
-            feature_count += 1
-        else:
-            train_x_sparse.append(train_x_part)
-            valid_x_sparse.append(valid_x_part)
-            feature_list_sparse.append(feature_name)
-            feature_count += train_x_part.shape[1]
+        train_x_sparse.append(train_x_part)
+        valid_x_sparse.append(valid_x_part)
+        feature_list_sparse.append(feature_name)
+        feature_count += train_x_part.shape[1]
     bar.update()
 
 if train_x_list != []:
@@ -209,7 +213,7 @@ f_feature_list.close()
 def LGB_predict(train_x, train_y, valid_x, valid_y):
     print("LGB test")
     clf = lgb.LGBMClassifier(
-        boosting_type='gbdt', num_leaves=31, reg_alpha=0.0, reg_lambda=1,
+        boosting_type='gbdt', num_leaves=50, reg_alpha=0.0, reg_lambda=1,
         max_depth=-1, n_estimators=10000, objective='binary',
         subsample=0.7, colsample_bytree=0.7, subsample_freq=1,
         learning_rate=0.05, min_child_weight=50, random_state=2018, n_jobs=-1
